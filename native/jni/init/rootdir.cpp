@@ -469,7 +469,24 @@ int magisk_proxy_main(int argc, char *argv[]) {
 	sbin_overlay(self, config);
 
 	// Create symlinks pointing back to /root
+#if defined(__i386__)
+	// readlinkat() may failed on x86 platform, returning random value 
+	// instead of  number of bytes placed in buf (length of link)
+	char path[256];
+	int sbin = xopen("/sbin", O_RDONLY | O_CLOEXEC);
+	DIR *dir = xopendir("/root");
+	struct dirent *entry;
+	while((entry = xreaddir(dir))) {
+		if (entry->d_name == "."sv || entry->d_name == ".."sv)
+			continue;
+		sprintf(path, "/root/%s", entry->d_name);
+		xsymlinkat(path, sbin, entry->d_name);
+	}
+	close(sbin);
+	closedir(dir);
+#else
 	recreate_sbin("/root", false);
+#endif
 
 	setenv("REMOUNT_ROOT", "1", 1);
 	execv("/sbin/magisk", argv);
